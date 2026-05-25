@@ -66,3 +66,38 @@ button {
 button:hover {
   background: #1d4ed8;
 }
+.upload-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preview-image {
+  width: 220px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  margin-top: 8px;
+}
+
+.result-box {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.result-box p {
+  margin: 8px 0;
+}
+
+.status-normal {
+  color: #008000;
+  font-weight: bold;
+}
+
+.status-alert {
+  color: #d00000;
+  font-weight: bold;
+}

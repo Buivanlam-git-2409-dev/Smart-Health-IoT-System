@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AnemiaUpload from "./components/AnemiaUpload";
 import axios from "axios";
 import "./App.css";
 
@@ -116,8 +117,11 @@ function App() {
         )}
       </section>
       <section className="card">
+        <AnemiaUpload />
+      </section>
+      <section className="card">
         <h2>Device Control</h2>
-
+            
         <div className="button-group">
           <button onClick={() => sendDeviceCommand({ led: true })}>
             LED ON
