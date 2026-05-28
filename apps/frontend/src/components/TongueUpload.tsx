@@ -54,13 +54,56 @@ export default function TongueUpload() {
     fetchHistory();
   }, []);
 
+  const createResizedPreview = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxWidth = 500;
+          const maxHeight = 300;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.9));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
 
     if (!selectedFile) return;
 
     setFile(selectedFile);
-    setPreviewUrl(URL.createObjectURL(selectedFile));
+    createResizedPreview(selectedFile).then((resizedUrl) => {
+      setPreviewUrl(resizedUrl);
+    });
+    setResult(null);
+  };
+
+  const handleClearImage = () => {
+    setFile(null);
+    setPreviewUrl("");
     setResult(null);
   };
 
@@ -106,16 +149,15 @@ export default function TongueUpload() {
     if (entries.length === 0) return null;
 
     return (
-      <div className="result-box">
-        <h4>{title}</h4>
-
+      <details className="result-box">
+        <summary>{title}</summary>
         <table>
           <thead>
             <tr>
-              <th>Nhãn</th>
-              <th>Xác suất</th>
-              <th>Ngưỡng</th>
-              <th>Kết quả</th>
+              <th>Label</th>
+              <th>Probability</th>
+              <th>Threshold</th>
+              <th>Result</th>
             </tr>
           </thead>
 
@@ -125,94 +167,94 @@ export default function TongueUpload() {
                 <td>{name}</td>
                 <td>{(item.probability * 100).toFixed(2)}%</td>
                 <td>{(item.threshold * 100).toFixed(2)}%</td>
-                <td
-                  className={
-                    item.detected ? "status-alert" : "status-normal"
-                  }
-                >
-                  {item.detected ? "Detected" : "Normal"}
+                <td>
+                  <span
+                    className={`status-pill ${
+                      item.detected ? "status-warning" : "status-normal"
+                    }`}
+                  >
+                    {item.detected ? "Detected" : "Normal"}
+                  </span>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </details>
     );
   };
 
   return (
     <div className="upload-box">
-      <h2>AI phân tích ảnh lưỡi</h2>
+      <h2>Analyze Tongue Image</h2>
 
       <input type="file" accept="image/*" onChange={handleFileChange} />
 
       {previewUrl && (
-        <div>
-          <img src={previewUrl} alt="tongue preview" className="preview-image" />
+        <div className="image-preview-wrapper">
+          <img src={previewUrl} alt="Tongue preview" className="preview-image" />
+          <button className="button-ghost button-clear" onClick={handleClearImage}>
+            Clear image
+          </button>
         </div>
       )}
 
-      <button onClick={handleUpload} disabled={loading}>
-        {loading ? "Đang phân tích..." : "Upload và phân tích lưỡi"}
+      <button className="button-primary" onClick={handleUpload} disabled={loading}>
+        {loading ? "Analyzing..." : "Analyze Tongue Image"}
       </button>
 
       {result && (
         <div className="result-box">
-          <h3>Kết quả phân tích lưỡi</h3>
+          <h3>Tongue Analysis Summary</h3>
 
           <p>
-            <b>Loại ảnh:</b> {result.image_type}
-          </p>
-
-          <p>
-            <b>Trạng thái:</b>{" "}
+            <strong>Status:</strong>{" "}
             <span
-              className={
+              className={`status-pill ${
                 result.status === "normal"
                   ? "status-normal"
-                  : "status-alert"
-              }
+                  : "status-warning"
+              }`}
             >
               {result.status}
             </span>
           </p>
 
           <p>
-            <b>Nhận xét:</b> {result.message}
+            <strong>Message:</strong> {result.message}
           </p>
 
           <p>
-            <b>Đặc điểm bất thường:</b>{" "}
+            <strong>Abnormal features:</strong>{" "}
             {result.abnormal_features.length > 0
               ? result.abnormal_features.join(", ")
-              : "Không có"}
+              : "None"}
           </p>
 
           <p>
-            <b>Target bất thường:</b>{" "}
+            <strong>Abnormal targets:</strong>{" "}
             {result.abnormal_targets.length > 0
               ? result.abnormal_targets.join(", ")
-              : "Không có"}
+              : "None"}
           </p>
         </div>
       )}
 
-      {result && renderDetectionTable("Đặc điểm lưỡi", result.features)}
+      {result && renderDetectionTable("Feature probabilities", result.features)}
 
-      {result && renderDetectionTable("Nhóm target", result.targets)}
+      {result && renderDetectionTable("Target probabilities", result.targets)}
 
       {history.length > 0 && (
-        <div className="result-box">
-          <h3>Lịch sử phân tích ảnh lưỡi</h3>
-
+        <details className="result-box">
+          <summary>Recent tongue analyses</summary>
           <table>
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Trạng thái</th>
-                <th>Đặc điểm bất thường</th>
-                <th>Target bất thường</th>
-                <th>Thời gian</th>
+                <th>Status</th>
+                <th>Abnormal features</th>
+                <th>Abnormal targets</th>
+                <th>Time</th>
               </tr>
             </thead>
 
@@ -221,26 +263,28 @@ export default function TongueUpload() {
                 <tr key={item.id}>
                   <td>{item.id}</td>
 
-                  <td
-                    className={
-                      item.status === "normal"
-                        ? "status-normal"
-                        : "status-alert"
-                    }
-                  >
-                    {item.status}
+                  <td>
+                    <span
+                      className={`status-pill ${
+                        item.status === "normal"
+                          ? "status-normal"
+                          : "status-warning"
+                      }`}
+                    >
+                      {item.status}
+                    </span>
                   </td>
 
                   <td>
                     {item.abnormal_features.length > 0
                       ? item.abnormal_features.join(", ")
-                      : "Không có"}
+                      : "None"}
                   </td>
 
                   <td>
                     {item.abnormal_targets.length > 0
                       ? item.abnormal_targets.join(", ")
-                      : "Không có"}
+                      : "None"}
                   </td>
 
                   <td>{new Date(item.created_at).toLocaleString()}</td>
@@ -248,7 +292,7 @@ export default function TongueUpload() {
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
       )}
     </div>
   );

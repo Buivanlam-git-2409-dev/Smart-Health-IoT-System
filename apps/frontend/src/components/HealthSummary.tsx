@@ -70,46 +70,50 @@ export default function HealthSummary() {
   if (!summary) {
     return (
       <div className="upload-box">
-        <h2>Tổng hợp sức khỏe</h2>
-        <p>{loading ? "Đang tải..." : "Chưa có dữ liệu tổng hợp."}</p>
+        <h2>Health Summary</h2>
+        <p>{loading ? "Loading summary..." : "No summary data yet."}</p>
       </div>
     );
   }
 
-  const statusClass =
-    summary.level === "normal" ? "status-normal" : "status-alert";
+  const statusClass = (() => {
+    const level = summary.level.toLowerCase();
+    if (level.includes("high") || level.includes("risk")) {
+      return "status-warning";
+    }
+    if (level.includes("warning")) {
+      return "status-warning";
+    }
+    return "status-normal";
+  })();
 
   return (
     <div className="upload-box">
-      <h2>Tổng hợp sức khỏe</h2>
+      <div className="report-header">
+        <div>
+          <h2>Health Summary</h2>
+          <p>Combined sensor and AI report</p>
+        </div>
+        <span className={`status-pill ${statusClass}`}>{summary.level}</span>
+      </div>
 
       <div className="result-box">
+        <div className="report-score">
+          <div className="score-value">{summary.risk_score}</div>
+          <div className="score-label">Risk score</div>
+          <div className="score-status">{summary.status}</div>
+        </div>
         <p>
-          <b>Trạng thái tổng hợp:</b>{" "}
-          <span className={statusClass}>{summary.status}</span>
+          <strong>Recommendation:</strong> {summary.message}
         </p>
-
-        <p>
-          <b>Mức cảnh báo:</b>{" "}
-          <span className={statusClass}>{summary.level}</span>
-        </p>
-
-        <p>
-          <b>Risk score:</b> {summary.risk_score}
-        </p>
-
-        <p>
-          <b>Nhận xét:</b> {summary.message}
-        </p>
-
-        <button onClick={fetchSummary} disabled={loading}>
-          {loading ? "Đang cập nhật..." : "Cập nhật tổng hợp"}
+        <button className="button-secondary" onClick={fetchSummary} disabled={loading}>
+          {loading ? "Refreshing..." : "Refresh summary"}
         </button>
       </div>
 
       {summary.reasons.length > 0 && (
         <div className="result-box">
-          <h3>Lý do cảnh báo</h3>
+          <h3>Contributing reasons</h3>
           <ul>
             {summary.reasons.map((reason, index) => (
               <li key={index}>{reason}</li>
@@ -119,44 +123,43 @@ export default function HealthSummary() {
       )}
 
       <div className="result-box">
-        <h3>Dữ liệu mới nhất</h3>
+        <h3>Latest signals</h3>
 
         {summary.latest_sensor && (
           <>
-            <h4>Cảm biến</h4>
-            <p>Nhịp tim: {summary.latest_sensor.heart_rate} BPM</p>
+            <h4>Sensors</h4>
+            <p>Heart rate: {summary.latest_sensor.heart_rate} BPM</p>
             <p>SpO2: {summary.latest_sensor.spo2}%</p>
-            <p>Nhiệt độ: {summary.latest_sensor.skin_temp}°C</p>
+            <p>Skin temperature: {summary.latest_sensor.skin_temp} C</p>
           </>
         )}
 
         {summary.latest_anemia && (
           <>
-            <h4>AI ảnh mắt</h4>
-            <p>Dự đoán: {summary.latest_anemia.prediction}</p>
-            <p>Trạng thái: {summary.latest_anemia.status}</p>
+            <h4>Eye AI</h4>
+            <p>Prediction: {summary.latest_anemia.prediction}</p>
+            <p>Status: {summary.latest_anemia.status}</p>
             <p>
-              Độ tin cậy:{" "}
-              {(summary.latest_anemia.confidence * 100).toFixed(2)}%
+              Confidence: {(summary.latest_anemia.confidence * 100).toFixed(2)}%
             </p>
           </>
         )}
 
         {summary.latest_tongue && (
           <>
-            <h4>AI ảnh lưỡi</h4>
-            <p>Trạng thái: {summary.latest_tongue.status}</p>
+            <h4>Tongue AI</h4>
+            <p>Status: {summary.latest_tongue.status}</p>
             <p>
-              Đặc điểm bất thường:{" "}
+              Abnormal features:{" "}
               {summary.latest_tongue.abnormal_features.length > 0
                 ? summary.latest_tongue.abnormal_features.join(", ")
-                : "Không có"}
+                : "None"}
             </p>
             <p>
-              Target bất thường:{" "}
+              Abnormal targets:{" "}
               {summary.latest_tongue.abnormal_targets.length > 0
                 ? summary.latest_tongue.abnormal_targets.join(", ")
-                : "Không có"}
+                : "None"}
             </p>
           </>
         )}

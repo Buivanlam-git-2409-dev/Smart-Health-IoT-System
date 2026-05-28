@@ -45,13 +45,56 @@ export default function AnemiaUpload() {
     fetchHistory();
   }, []);
 
+  const createResizedPreview = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxWidth = 500;
+          const maxHeight = 300;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.9));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
 
     if (!selectedFile) return;
 
     setFile(selectedFile);
-    setPreviewUrl(URL.createObjectURL(selectedFile));
+    createResizedPreview(selectedFile).then((resizedUrl) => {
+      setPreviewUrl(resizedUrl);
+    });
+    setResult(null);
+  };
+
+  const handleClearImage = () => {
+    setFile(null);
+    setPreviewUrl("");
     setResult(null);
   };
 
@@ -92,68 +135,66 @@ export default function AnemiaUpload() {
 
   return (
     <div className="upload-box">
-      <h2>AI phân tích ảnh mắt</h2>
+      <h2>Analyze Eye Image</h2>
 
       <input type="file" accept="image/*" onChange={handleFileChange} />
 
       {previewUrl && (
-        <div>
-          <img src={previewUrl} alt="preview" className="preview-image" />
+        <div className="image-preview-wrapper">
+          <img src={previewUrl} alt="Eye preview" className="preview-image" />
+          <button className="button-ghost button-clear" onClick={handleClearImage}>
+            Clear image
+          </button>
         </div>
       )}
 
-      <button onClick={handleUpload} disabled={loading}>
-        {loading ? "Đang phân tích..." : "Upload và phân tích"}
+      <button className="button-primary" onClick={handleUpload} disabled={loading}>
+        {loading ? "Analyzing..." : "Analyze Eye Image"}
       </button>
 
       {result && (
         <div className="result-box">
-          <h3>Kết quả AI</h3>
+          <h3>AI Result</h3>
 
           <p>
-            <b>Loại ảnh:</b> {result.image_type}
+            <strong>Prediction:</strong> {result.prediction}
           </p>
 
           <p>
-            <b>Dự đoán:</b> {result.prediction}
-          </p>
-
-          <p>
-            <b>Trạng thái:</b>{" "}
+            <strong>Status:</strong>{" "}
             <span
-              className={
+              className={`status-pill ${
                 result.status === "abnormal"
-                  ? "status-alert"
+                  ? "status-warning"
                   : "status-normal"
-              }
+              }`}
             >
               {result.status}
             </span>
           </p>
 
           <p>
-            <b>Độ tin cậy:</b> {(result.confidence * 100).toFixed(0)}%
+            <strong>Confidence:</strong> {(result.confidence * 100).toFixed(0)}%
           </p>
 
           <p>
-            <b>Khuyến nghị:</b> {result.message}
+            <strong>Medical note:</strong> {result.message}
           </p>
         </div>
       )}
 
       {history.length > 0 && (
-        <div className="result-box">
-          <h3>Lịch sử phân tích AI</h3>
-
+        <details className="result-box">
+          <summary>Recent eye analyses</summary>
           <table>
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Loại ảnh</th>
-                <th>Dự đoán</th>
-                <th>Trạng thái</th>
-                <th>Độ tin cậy</th>
-                <th>Thời gian</th>
+                <th>Type</th>
+                <th>Prediction</th>
+                <th>Status</th>
+                <th>Confidence</th>
+                <th>Time</th>
               </tr>
             </thead>
 
@@ -163,14 +204,16 @@ export default function AnemiaUpload() {
                   <td>{item.id}</td>
                   <td>{item.image_type}</td>
                   <td>{item.prediction}</td>
-                  <td
-                    className={
-                      item.status === "abnormal"
-                        ? "status-alert"
-                        : "status-normal"
-                    }
-                  >
-                    {item.status}
+                  <td>
+                    <span
+                      className={`status-pill ${
+                        item.status === "abnormal"
+                          ? "status-warning"
+                          : "status-normal"
+                      }`}
+                    >
+                      {item.status}
+                    </span>
                   </td>
                   <td>{(item.confidence * 100).toFixed(0)}%</td>
                   <td>{new Date(item.created_at).toLocaleString()}</td>
@@ -178,7 +221,7 @@ export default function AnemiaUpload() {
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
       )}
     </div>
   );
