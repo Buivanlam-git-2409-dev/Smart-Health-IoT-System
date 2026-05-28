@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import AnemiaUpload from "./components/AnemiaUpload";
 import axios from "axios";
 import "./App.css";
+import TongueUpload from "./components/TongueUpload";
+import HealthSummary from "./components/HealthSummary";
 
 type SensorData = {
   id: number;
@@ -61,13 +63,19 @@ function App() {
   };
 
   useEffect(() => {
-    fetchAllData();
+    // schedule initial fetch asynchronously to avoid calling setState synchronously in the effect
+    const initial = setTimeout(() => {
+      fetchAllData();
+    }, 0);
 
     const interval = setInterval(() => {
       fetchAllData();
     }, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
   }, []);
 
   if (loading) {
@@ -117,7 +125,13 @@ function App() {
         )}
       </section>
       <section className="card">
+        <HealthSummary />
+      </section>
+      <section className="card">
         <AnemiaUpload />
+      </section>
+      <section className="card">
+        <TongueUpload />
       </section>
       <section className="card">
         <h2>Device Control</h2>

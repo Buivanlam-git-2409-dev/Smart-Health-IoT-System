@@ -92,7 +92,7 @@ export default function AnemiaUpload() {
 
   return (
     <div className="upload-box">
-      <h2>AI phân tích nguy cơ thiếu máu</h2>
+      <h2>AI phân tích ảnh mắt</h2>
 
       <input type="file" accept="image/*" onChange={handleFileChange} />
 
