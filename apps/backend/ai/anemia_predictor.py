@@ -14,7 +14,7 @@ from PIL import Image
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR / "models" / "anemia_model.pth"
+MODEL_PATH = BASE_DIR / "models" / "best_anemia_efficientnet_b4.pth"
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
