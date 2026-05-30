@@ -1,5 +1,4 @@
 __pycache__
 uploads
-*.dbapps/backend/models/*.pth
-*.pth
-apps/backend/models/*.pth
+*.db
+apps/backend/smart_health.db
