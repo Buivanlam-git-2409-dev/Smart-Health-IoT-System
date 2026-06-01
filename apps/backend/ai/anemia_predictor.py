@@ -1,159 +1,113 @@
 from pathlib import Path
 from typing import Any
+import json
 
-import torch
-from torch import nn
-from torchvision import transforms
-from torchvision.models import (
-    EfficientNet_B0_Weights,
-    EfficientNet_B3_Weights,
-    efficientnet_b0,
-    efficientnet_b3,
-)
+import numpy as np
 from PIL import Image
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR / "models" / "anemia_model.pth"
+MODEL_PATH = BASE_DIR / "models" / "best_anemia_eye_mobilenetv2.keras"
+LABEL_MAP_PATH = BASE_DIR / "models" / "anemia_eye_label_map.json"
 
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD = (0.229, 0.224, 0.225)
+IMG_SIZE = (224, 224)
 
 CLASS_NAMES = ("non-anemic", "anemic")
 CLASS_TO_IDX = {name: index for index, name in enumerate(CLASS_NAMES)}
 IDX_TO_CLASS = {index: name for name, index in CLASS_TO_IDX.items()}
 
-_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _MODEL = None
-_CHECKPOINT = None
-_TRANSFORM = None
+_LABEL_MAP = None
+_PREPROCESS_INPUT = None
 
 
 _MODEL_REGISTRY = {
-    "efficientnet_b0": {
-        "builder": efficientnet_b0,
-        "weights": EfficientNet_B0_Weights.IMAGENET1K_V1,
-        "classifier_features": 1280,
+    "mobilenetv2": {
+        "preprocess_module": "tensorflow.keras.applications.mobilenet_v2",
     },
-    "efficientnet_b3": {
-        "builder": efficientnet_b3,
-        "weights": EfficientNet_B3_Weights.IMAGENET1K_V1,
-        "classifier_features": 1536,
+    "resnet50": {
+        "preprocess_module": "tensorflow.keras.applications.resnet50",
+    },
+    "densenet201": {
+        "preprocess_module": "tensorflow.keras.applications.densenet",
     },
 }
 
 
-def build_model(
-    num_classes: int = 2,
-    pretrained: bool = False,
-    architecture: str = "efficientnet_b3",
-) -> nn.Module:
+def get_preprocess_input(model_name: str = "mobilenetv2"):
     """
-    Build model theo cấu trúc của repo anemia-detection.
+    Lấy hàm preprocess_input tương ứng với model.
+    Mặc định: MobileNetV2.
     """
-    architecture = architecture.strip().lower()
+    model_name = model_name.strip().lower()
 
-    if architecture not in _MODEL_REGISTRY:
-        architecture = "efficientnet_b3"
+    if model_name == "resnet50":
+        from tensorflow.keras.applications.resnet50 import preprocess_input
+        return preprocess_input
 
-    spec = _MODEL_REGISTRY[architecture]
-    weights = spec["weights"] if pretrained else None
+    if model_name == "densenet201":
+        from tensorflow.keras.applications.densenet import preprocess_input
+        return preprocess_input
 
-    model = spec["builder"](weights=weights)
-
-    classifier_in_features = spec["classifier_features"]
-
-    model.avgpool = nn.AdaptiveAvgPool2d(output_size=1)
-    model.classifier = nn.Sequential(
-        nn.Flatten(),
-        nn.Linear(classifier_in_features, 512),
-        nn.BatchNorm1d(512),
-        nn.GELU(),
-        nn.Dropout(p=0.45),
-        nn.Linear(512, 256),
-        nn.BatchNorm1d(256),
-        nn.GELU(),
-        nn.Dropout(p=0.35),
-        nn.Linear(256, num_classes),
-    )
-
-    return model
+    # Default MobileNetV2
+    from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+    return preprocess_input
 
 
-def get_image_size_from_checkpoint(checkpoint: dict[str, Any]) -> tuple[int, int]:
+def load_label_map():
     """
-    Ưu tiên lấy image_size từ checkpoint.
-    Nếu không có thì dùng 300x300.
+    Load label map từ JSON file nếu tồn tại.
+    Nếu không có sẽ dùng mặc định.
     """
-    default_size = (300, 300)
+    global _LABEL_MAP
 
-    config_snapshot = checkpoint.get("config", {})
-    if not isinstance(config_snapshot, dict):
-        return default_size
+    if _LABEL_MAP is not None:
+        return _LABEL_MAP
 
-    training_snapshot = config_snapshot.get("training", {})
-    if not isinstance(training_snapshot, dict):
-        return default_size
+    if LABEL_MAP_PATH.exists():
+        with open(LABEL_MAP_PATH, "r", encoding="utf-8") as f:
+            _LABEL_MAP = json.load(f)
+    else:
+        # Mặc định: {0: "non-anemic", 1: "anemic"}
+        _LABEL_MAP = {
+            "non-anemic": 0,
+            "anemic": 1
+        }
 
-    image_size = training_snapshot.get("image_size")
-
-    if isinstance(image_size, (list, tuple)) and len(image_size) == 2:
-        return int(image_size[0]), int(image_size[1])
-
-    return default_size
+    return _LABEL_MAP
 
 
 def load_model_once():
     """
     Load model một lần duy nhất khi API được gọi lần đầu.
+    Sử dụng model .keras từ notebook training.
     """
-    global _MODEL, _CHECKPOINT, _TRANSFORM
+    global _MODEL, _PREPROCESS_INPUT
 
     if _MODEL is not None:
-        return _MODEL, _CHECKPOINT, _TRANSFORM
+        return _MODEL, _PREPROCESS_INPUT
 
     if not MODEL_PATH.exists():
         raise FileNotFoundError(f"Không tìm thấy model: {MODEL_PATH}")
 
-    # PyTorch mới cần weights_only=False để đọc checkpoint cũ.
-    checkpoint = torch.load(
-        MODEL_PATH,
-        map_location=_DEVICE,
-        weights_only=False,
-    )
+    # Load model Keras
+    _MODEL = load_model(MODEL_PATH)
+    _MODEL.summary()
 
-    architecture = checkpoint.get("architecture", "efficientnet_b3")
-    state_dict = checkpoint["model_state_dict"]
+    # Xác định model type từ tên file hoặc cấu trúc
+    model_name = "mobilenetv2"  # mặc định
+    if "resnet50" in MODEL_PATH.name:
+        model_name = "resnet50"
+    elif "densenet201" in MODEL_PATH.name:
+        model_name = "densenet201"
 
-    class_names = checkpoint.get("class_names", list(CLASS_NAMES))
-    num_classes = len(class_names)
+    _PREPROCESS_INPUT = get_preprocess_input(model_name)
 
-    model = build_model(
-        num_classes=num_classes,
-        pretrained=False,
-        architecture=architecture,
-    )
+    return _MODEL, _PREPROCESS_INPUT
 
-    model.load_state_dict(state_dict)
-    model.to(_DEVICE)
-    model.eval()
-
-    image_size = get_image_size_from_checkpoint(checkpoint)
-
-    transform = transforms.Compose(
-        [
-            transforms.Resize(image_size),
-            transforms.CenterCrop(image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-        ]
-    )
-
-    _MODEL = model
-    _CHECKPOINT = checkpoint
-    _TRANSFORM = transform
-
-    return _MODEL, _CHECKPOINT, _TRANSFORM
 
 
 def normalize_prediction_label(raw_label: str) -> str:
@@ -227,38 +181,46 @@ def estimate_risk_level(prediction: str, confidence: float) -> str:
 
 def predict_anemia(image_path: str) -> dict:
     """
-    Hàm chính đang được main.py gọi.
+    Hàm chính được main.py gọi.
     Input: đường dẫn ảnh.
     Output: format tương thích với React hiện tại.
+    
+    Sử dụng model Keras được train từ notebook anemia_eye_conjuctiva_only_training.ipynb
     """
-    model, checkpoint, transform = load_model_once()
+    model, preprocess_input = load_model_once()
+    label_map = load_label_map()
 
     image_file = Path(image_path)
 
     if not image_file.exists():
         raise FileNotFoundError(f"Không tìm thấy ảnh: {image_file}")
 
-    with Image.open(image_file) as image:
-        image = image.convert("RGB")
-        input_tensor = transform(image).unsqueeze(0).to(_DEVICE)
+    # Load và preprocess ảnh
+    image = load_img(image_file, target_size=IMG_SIZE)
+    image_array = img_to_array(image)
+    image_array = np.expand_dims(image_array, axis=0)
+    image_array = preprocess_input(image_array)
 
-    with torch.no_grad():
-        logits = model(input_tensor)
-        probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu()
+    # Inference
+    predictions = model.predict(image_array, verbose=0)
+    probabilities = predictions[0]  # lấy batch đầu tiên
 
-    predicted_index = int(torch.argmax(probabilities).item())
+    # Binary classification: [non-anemic_prob, anemic_prob]
+    non_anemic_probability = float(probabilities[0])
+    anemic_probability = float(probabilities[1])
 
-    class_names = checkpoint.get("class_names", list(CLASS_NAMES))
-    raw_label = class_names[predicted_index]
+    # Xác định prediction
+    predicted_index = np.argmax(probabilities)
+    confidence = float(probabilities[predicted_index])
 
+    # Lấy tên class từ label map
+    idx_to_class = {v: k for k, v in label_map.items()} if isinstance(label_map, dict) else {}
+    
+    if not idx_to_class:
+        idx_to_class = {0: "non-anemic", 1: "anemic"}
+
+    raw_label = idx_to_class.get(predicted_index, "non-anemic")
     prediction_label = normalize_prediction_label(raw_label)
-    confidence = float(probabilities[predicted_index].item())
-
-    anemic_index = class_names.index("anemic") if "anemic" in class_names else 1
-    non_anemic_index = class_names.index("non-anemic") if "non-anemic" in class_names else 0
-
-    anemic_probability = float(probabilities[anemic_index].item())
-    non_anemic_probability = float(probabilities[non_anemic_index].item())
 
     status, message = build_message(prediction_label, confidence)
     risk_level = estimate_risk_level(prediction_label, confidence)
