@@ -2,3 +2,4 @@ __pycache__
 uploads
 *.db
 apps/backend/smart_health.db
+venv
