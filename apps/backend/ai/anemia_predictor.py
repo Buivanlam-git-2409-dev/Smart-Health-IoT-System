@@ -205,9 +205,17 @@ def predict_anemia(image_path: str) -> dict:
     predictions = model.predict(image_array, verbose=0)
     probabilities = predictions[0]  # lấy batch đầu tiên
 
-    # Binary classification: [non-anemic_prob, anemic_prob]
-    non_anemic_probability = float(probabilities[0])
-    anemic_probability = float(probabilities[1])
+    # Hỗ trợ cả model 1 đầu ra (Sigmoid) và 2 đầu ra (Softmax)
+    if len(probabilities) == 1:
+        # Nếu model có 1 đầu ra (Sigmoid), probabilities[0] thường là xác suất của class 1.
+        # Dựa trên label_map: { "Anemic": 0, "Non-Anemic": 1 }, class 1 là Non-Anemic.
+        prob_class_1 = float(probabilities[0])
+        probabilities = np.array([1.0 - prob_class_1, prob_class_1])
+
+    # Bây giờ probabilities luôn có 2 phần tử: [prob_index_0, prob_index_1]
+    # Dựa trên label_map, index 0 là Anemic, index 1 là Non-Anemic
+    anemic_probability = float(probabilities[0])
+    non_anemic_probability = float(probabilities[1])
 
     # Xác định prediction
     predicted_index = np.argmax(probabilities)

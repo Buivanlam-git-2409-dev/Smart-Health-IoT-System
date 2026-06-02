@@ -7,7 +7,8 @@ This document provides detailed information about the datasets used to train and
 The model for anemia detection uses images of the human eye, specifically focusing on the **conjunctiva** (the mucous membrane covering the white part of the eye and the inner surface of the eyelids).
 
 ### Source & Acquisition
-- **Primary Source:** Kaggle `clean-augmented-anemia-dataset` (Source ID: `t2obd1a1253kmit/clean-augmented-anemia-dataset`).
+- **Primary Source:** Kaggle [clean-augmented-anemia-dataset](https://www.kaggle.com/datasets/t2obd1a1253kmit/clean-augmented-anemia-dataset)
+- **Training Reference:** Kaggle [Anemia Eye Notebook](https://www.kaggle.com/code/lmbi135468/anemia-eye) (Implementation and training insights).
 - **Data Selection:** Only the `Conjuctiva` / `Eye` subset is used. Other parts like `Finger_Nails` or `Palm` were excluded to ensure high specificity for eye-based screening.
 
 ### Data Split & Statistics
@@ -36,6 +37,10 @@ The following steps were applied to improve model generalization and performance
 ## 2. Tongue Multitask Dataset
 
 The tongue analysis model uses a multi-task dataset to simultaneously recognize surface features and predict potential organ-related indicators.
+
+### Source & Acquisition
+- **Primary Source:** [TongueDx GitHub Repository](https://github.com/tonguedx/tonguedx) (Base dataset and methodology).
+- **Training Reference:** Kaggle [Tongue Analysis Notebook](https://www.kaggle.com/code/lmbi135468/tongue) (Implementation and training insights).
 
 ### Data Split & Statistics
 The dataset consists of the following splits:
